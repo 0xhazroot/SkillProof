@@ -1,0 +1,105 @@
+// Esquema de Base de Datos para SkillProof (TECSUP - Diseño y Desarrollo de Software)
+// Base de datos: PostgreSQL (Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  EVALUATOR
+  COMPANY
+}
+
+enum SubmissionStatus {
+  PENDING
+  VALIDATED
+  NEEDS_REINFORCEMENT
+}
+
+model User {
+  id             String       @id @default(cuid())
+  fullName       String
+  username       String       @unique
+  email          String       @unique // @tecsup.edu.pe
+  role           UserRole     @default(STUDENT)
+  career         String       @default("Diseño y Desarrollo de Software")
+  department     String       @default("Departamento de Tecnología Digital")
+  semester       String?      // Ej. "V Ciclo"
+  githubUsername String?
+  bio            String?
+  createdAt      DateTime     @default(now())
+
+  submissions    Submission[] @relation("StudentSubmissions")
+  evaluations    Submission[] @relation("EvaluatorReviews")
+}
+
+model Challenge {
+  id               String            @id @default(cuid())
+  slug             String            @unique
+  title            String
+  level            String            // Ej. "Nivel 1"
+  category         String            // Ej. "Backend & APIs", "Base de Datos", etc.
+  recommendedHours Int               // Entre 1 y 4 horas (M de SCAMPER)
+  minPassingScore  Int               @default(75)
+  shortDescription String
+  scenario         String
+  requirements     String[]
+  deliverables     String[]
+  createdAt        DateTime          @default(now())
+
+  criteria         RubricCriterion[]
+  submissions      Submission[]
+}
+
+model RubricCriterion {
+  id                  String            @id @default(cuid())
+  challengeId         String
+  name                String            // Ej. "API funcional", "Base de datos", "Código", "Git", "Documentación"
+  description         String
+  maxPoints           Int               // Ej. 25, 25, 20, 15, 15 (Total 100)
+  reinforcementAdvice String            // Qué debe reforzar si falla este criterio (R de SCAMPER)
+  orderIndex          Int
+
+  challenge           Challenge         @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  scores              SubmissionScore[]
+}
+
+model Submission {
+  id               String            @id @default(cuid())
+  challengeId      String
+  studentId        String
+  evaluatorId      String?
+  githubRepoUrl    String
+  documentationUrl String
+  liveDemoUrl      String?
+  studentNotes     String?
+  status           SubmissionStatus  @default(PENDING)
+  totalScore       Int?              // Ej. 88/100
+  evaluatorFeedback String?
+  verificationCode String?           @unique // Ej. "SP-TECSUP-2026-API01"
+  submittedAt      DateTime          @default(now())
+  evaluatedAt      DateTime?
+
+  challenge        Challenge         @relation(fields: [challengeId], references: [id])
+  student          User              @relation("StudentSubmissions", fields: [studentId], references: [id])
+  evaluator        User?             @relation("EvaluatorReviews", fields: [evaluatorId], references: [id])
+  scores           SubmissionScore[]
+}
+
+model SubmissionScore {
+  id              String          @id @default(cuid())
+  submissionId    String
+  criterionId     String
+  pointsAwarded   Int
+  criterionComment String?
+
+  submission      Submission      @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  criterion       RubricCriterion @relation(fields: [criterionId], references: [id])
+}
+
